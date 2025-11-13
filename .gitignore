@@ -1,0 +1,45 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Local settings / secrets
+# Dependencies
+node_modules
+/.pnp
+.pnp.js
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Databases and local state
+instance/
+*.sqlite3
+*.db
+
+# Test/coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node (if ever added)
+node_modules/
+dist/
+build/
+
+# Reports or generated artifacts
+*.pdf
