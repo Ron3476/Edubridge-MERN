@@ -142,80 +142,90 @@ const ParentDashboard = () => {
         {/* Line Chart - Term Progress */}
         <Grid item xs={12} md={6}>
           <Typography variant="subtitle1" gutterBottom>Progress by Term</Typography>
-          <Line
-            data={{
-              labels: terms.length > 0 ? terms : ['No Data'],
-              datasets: [{
-                label: 'Average Marks (%)',
-                data: termAverages.length > 0 ? termAverages : [0],
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                tension: 0.4,
-                fill: true,
-                pointRadius: 6,
-                pointBackgroundColor: 'rgb(75, 192, 192)',
-              }]
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: true, position: 'top' },
-                title: { display: false }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  max: 100,
-                  title: { display: true, text: 'Marks (%)' }
+          <Box sx={{ height: 300, position: 'relative' }}>
+            <Line
+              data={{
+                labels: terms.length > 0 ? terms : ['No Data'],
+                datasets: [{
+                  label: 'Average Marks (%)',
+                  data: termAverages.length > 0 ? termAverages : [0],
+                  borderColor: 'rgb(75, 192, 192)',
+                  backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                  tension: 0.4,
+                  fill: true,
+                  pointRadius: 6,
+                  pointBackgroundColor: 'rgb(75, 192, 192)',
+                }]
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: true, position: 'top' },
+                  title: { display: false }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: { display: true, text: 'Marks (%)' }
+                  },
+                  x: {
+                    title: { display: true, text: 'Term' }
+                  }
                 }
-              }
-            }}
-          />
+              }}
+            />
+          </Box>
         </Grid>
 
         {/* Bar Chart - Subject Performance */}
         <Grid item xs={12} md={6}>
           <Typography variant="subtitle1" gutterBottom>Performance by Subject</Typography>
-          <Bar
-            data={{
-              labels: allSubjects.length > 0 ? allSubjects : ['No Data'],
-              datasets: [{
-                label: 'Average Marks (%)',
-                data: subjectData.length > 0 ? subjectData : [0],
-                backgroundColor: [
-                  'rgba(75, 192, 192, 0.6)',
-                  'rgba(54, 162, 235, 0.6)',
-                  'rgba(255, 206, 86, 0.6)',
-                  'rgba(255, 99, 132, 0.6)',
-                  'rgba(153, 102, 255, 0.6)',
-                ],
-                borderColor: [
-                  'rgba(75, 192, 192, 1)',
-                  'rgba(54, 162, 235, 1)',
-                  'rgba(255, 206, 86, 1)',
-                  'rgba(255, 99, 132, 1)',
-                  'rgba(153, 102, 255, 1)',
-                ],
-                borderWidth: 1
-              }]
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-                title: { display: false }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  max: 100,
-                  title: { display: true, text: 'Marks (%)' }
+          <Box sx={{ height: 300, position: 'relative' }}>
+            <Bar
+              data={{
+                labels: allSubjects.length > 0 ? allSubjects : ['No Data'],
+                datasets: [{
+                  label: 'Average Marks (%)',
+                  data: subjectData.length > 0 ? subjectData : [0],
+                  backgroundColor: [
+                    'rgba(75, 192, 192, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(255, 206, 86, 0.6)',
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(153, 102, 255, 0.6)',
+                  ],
+                  borderColor: [
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(153, 102, 255, 1)',
+                  ],
+                  borderWidth: 1
+                }]
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: false },
+                  title: { display: false }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: { display: true, text: 'Marks (%)' }
+                  },
+                  x: {
+                    title: { display: true, text: 'Subject' }
+                  }
                 }
-              }
-            }}
-          />
+              }}
+            />
+          </Box>
         </Grid>
       </Grid>
     );
@@ -267,7 +277,7 @@ const ParentDashboard = () => {
                       {/* Graph Section */}
                       <Paper sx={{ p: 3, mb: 3, bgcolor: 'background.default' }}>
                         <Typography variant="h6" gutterBottom>{child.name}'s Academic Performance Overview</Typography>
-                        <Box sx={{ height: 400, mt: 2 }}>
+                        <Box sx={{ mt: 2 }}>
                           {renderChildProgressChart(childMarks, child.name)}
                         </Box>
                       </Paper>
@@ -373,33 +383,139 @@ const ParentDashboard = () => {
 
         {/* Attendance Tab */}
         {activeTab===1 && (
-          <Box sx={{ p:2 }}>
-            {children.map(child => {
-              const attendance = child.attendance || [];
-              const total = attendance.length;
-              const present = attendance.filter(a => a.present).length;
-              const percent = total ? Math.round((present/total)*100) : null;
-              return (
-                <Paper key={child._id} sx={{ mb:2, p:2 }}>
-                  <Typography variant="h6">{child.name}</Typography>
-                  {total ? (
-                    <Box>
-                      <Typography variant="body2">Attendance: {present}/{total} ({percent}%)</Typography>
-                      <Box sx={{ mt:1 }}>
-                        <Typography variant="subtitle2">Recent</Typography>
-                        <List>
-                          {attendance.slice(0,5).map((a, idx)=>(
-                            <ListItem key={idx}>
-                              <ListItemText primary={new Date(a.date).toLocaleDateString()} secondary={a.present?'Present':'Absent'} />
-                            </ListItem>
-                          ))}
-                        </List>
+          <Box sx={{ p: 3 }}>
+            {children.length === 0 ? (
+              <Typography color="textSecondary">No children found</Typography>
+            ) : (
+              children.map(child => {
+                const childAttendance = child.attendance || [];
+                
+                // Calculate attendance statistics
+                const attendanceBySubject = {};
+                childAttendance.forEach(record => {
+                  const subjectName = record.subjectId?.name || 'Unknown';
+                  if (!attendanceBySubject[subjectName]) {
+                    attendanceBySubject[subjectName] = { total: 0, present: 0, absent: 0, late: 0, excused: 0 };
+                  }
+                  attendanceBySubject[subjectName].total++;
+                  if (record.status === 'present') attendanceBySubject[subjectName].present++;
+                  else if (record.status === 'absent') attendanceBySubject[subjectName].absent++;
+                  else if (record.status === 'late') attendanceBySubject[subjectName].late++;
+                  else if (record.status === 'excused') attendanceBySubject[subjectName].excused++;
+                });
+
+                return (
+                  <Paper key={child._id} sx={{ mb: 3, p: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6">{child.name}</Typography>
+                        <Typography variant="subtitle2" color="textSecondary">
+                          Admission: {child.admissionNumber || 'N/A'}
+                        </Typography>
                       </Box>
                     </Box>
-                  ) : <Typography color="textSecondary">Attendance data not available</Typography>}
-                </Paper>
-              );
-            })}
+
+                    {childAttendance.length > 0 ? (
+                      <>
+                        {/* Attendance Statistics by Subject */}
+                        {Object.keys(attendanceBySubject).length > 0 && (
+                          <Paper sx={{ p: 2, mb: 3, bgcolor: 'background.default' }}>
+                            <Typography variant="h6" gutterBottom>Attendance by Subject</Typography>
+                            <Grid container spacing={2}>
+                              {Object.entries(attendanceBySubject).map(([subject, stats]) => {
+                                const rate = stats.total > 0 
+                                  ? ((stats.present + stats.excused) / stats.total * 100).toFixed(1)
+                                  : 0;
+                                return (
+                                  <Grid item xs={12} sm={6} md={4} key={subject}>
+                                    <Paper sx={{ p: 2 }}>
+                                      <Typography variant="subtitle1" gutterBottom>{subject}</Typography>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                        <Typography variant="body2">Total:</Typography>
+                                        <Typography variant="body2" fontWeight="bold">{stats.total}</Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                        <Typography variant="body2" color="success.main">Present:</Typography>
+                                        <Typography variant="body2" fontWeight="bold">{stats.present}</Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                        <Typography variant="body2" color="error.main">Absent:</Typography>
+                                        <Typography variant="body2" fontWeight="bold">{stats.absent}</Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                        <Typography variant="body2" color="warning.main">Late:</Typography>
+                                        <Typography variant="body2" fontWeight="bold">{stats.late}</Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                        <Typography variant="body2" color="info.main">Excused:</Typography>
+                                        <Typography variant="body2" fontWeight="bold">{stats.excused}</Typography>
+                                      </Box>
+                                      <Chip 
+                                        label={`${rate}% Attendance Rate`}
+                                        color={parseFloat(rate) >= 80 ? 'success' : parseFloat(rate) >= 60 ? 'warning' : 'error'}
+                                        sx={{ width: '100%' }}
+                                      />
+                                    </Paper>
+                                  </Grid>
+                                );
+                              })}
+                            </Grid>
+                          </Paper>
+                        )}
+
+                        {/* Attendance Records Table */}
+                        <Typography variant="h6" gutterBottom>Attendance Records</Typography>
+                        <TableContainer>
+                          <Table>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Date</TableCell>
+                                <TableCell>Subject</TableCell>
+                                <TableCell>Status</TableCell>
+                                <TableCell>Term</TableCell>
+                                <TableCell>Marked By</TableCell>
+                                <TableCell>Notes</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {childAttendance.map((record) => {
+                                const getStatusColor = (status) => {
+                                  switch (status) {
+                                    case 'present': return 'success';
+                                    case 'absent': return 'error';
+                                    case 'late': return 'warning';
+                                    case 'excused': return 'info';
+                                    default: return 'default';
+                                  }
+                                };
+                                return (
+                                  <TableRow key={record._id}>
+                                    <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                                    <TableCell>{record.subjectId?.name || 'N/A'}</TableCell>
+                                    <TableCell>
+                                      <Chip 
+                                        label={record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                                        color={getStatusColor(record.status)}
+                                        size="small"
+                                      />
+                                    </TableCell>
+                                    <TableCell>{record.term || 'N/A'}</TableCell>
+                                    <TableCell>{record.markedBy?.name || 'N/A'}</TableCell>
+                                    <TableCell>{record.notes || '-'}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </>
+                    ) : (
+                      <Typography color="textSecondary">No attendance records available for {child.name}</Typography>
+                    )}
+                  </Paper>
+                );
+              })
+            )}
           </Box>
         )}
 

@@ -32,9 +32,10 @@ import {
   Card,
   CardContent,
   Snackbar,
-  IconButton
+  IconButton,
+  Chip
 } from '@mui/material';
-import { Add, Edit, Delete, School, Assessment, BarChart, PersonAdd, CloudUpload, GetApp, Description } from '@mui/icons-material';
+import { Add, Edit, Delete, School, Assessment, BarChart, PersonAdd, CloudUpload, GetApp, Description, EventNote, CheckCircle, Cancel, Schedule, Block } from '@mui/icons-material';
 
 const TeacherDashboard = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -89,6 +90,34 @@ const TeacherDashboard = () => {
   const [editMarkDialog, setEditMarkDialog] = useState(false);
   const [editingMark, setEditingMark] = useState(null);
 
+  // Attendance state
+  const [attendance, setAttendance] = useState([]);
+  const [attendanceStats, setAttendanceStats] = useState([]);
+  const [attendanceDialog, setAttendanceDialog] = useState(false);
+  const [bulkAttendanceDialog, setBulkAttendanceDialog] = useState(false);
+  const [newAttendance, setNewAttendance] = useState({
+    studentId: '',
+    subjectId: '',
+    date: new Date().toISOString().split('T')[0],
+    status: 'present',
+    term: '',
+    level: '',
+    notes: ''
+  });
+  const [bulkAttendance, setBulkAttendance] = useState({
+    subjectId: '',
+    date: new Date().toISOString().split('T')[0],
+    term: '',
+    level: '',
+    attendanceList: []
+  });
+  const [attendanceFilters, setAttendanceFilters] = useState({
+    subjectId: '',
+    term: '',
+    level: '',
+    date: ''
+  });
+
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -111,6 +140,12 @@ const TeacherDashboard = () => {
       setStudents(studentsRes.data || []);
       setStats(statsRes.data || { stats: [] });
       setEnrollments(enrollmentsRes.data || []);
+      
+      // Fetch attendance if on attendance tab
+      if (activeTab === 6) {
+        fetchAttendance();
+        fetchAttendanceStats();
+      }
     } catch (error) {
       console.error('Error fetching teacher data:', error);
       setErrorMsg('Failed to load data. Please try again.');
@@ -121,6 +156,40 @@ const TeacherDashboard = () => {
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
+    if (newValue === 6) {
+      fetchAttendance();
+      fetchAttendanceStats();
+    }
+  };
+
+  const fetchAttendance = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (attendanceFilters.subjectId) params.append('subjectId', attendanceFilters.subjectId);
+      if (attendanceFilters.term) params.append('term', attendanceFilters.term);
+      if (attendanceFilters.level) params.append('level', attendanceFilters.level);
+      if (attendanceFilters.date) params.append('date', attendanceFilters.date);
+      
+      const res = await api.get(`/teachers/attendance?${params.toString()}`);
+      setAttendance(res.data || []);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+      setSnack({ open: true, message: 'Failed to load attendance' });
+    }
+  };
+
+  const fetchAttendanceStats = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (attendanceFilters.subjectId) params.append('subjectId', attendanceFilters.subjectId);
+      if (attendanceFilters.term) params.append('term', attendanceFilters.term);
+      if (attendanceFilters.level) params.append('level', attendanceFilters.level);
+      
+      const res = await api.get(`/teachers/attendance/stats?${params.toString()}`);
+      setAttendanceStats(res.data || []);
+    } catch (error) {
+      console.error('Error fetching attendance stats:', error);
+    }
   };
 
   // Subject management
@@ -377,6 +446,109 @@ const TeacherDashboard = () => {
   const openEditMarkDialog = (mark) => {
     setEditingMark(mark);
     setEditMarkDialog(true);
+  };
+
+  // Attendance management functions
+  const openAttendanceDialog = () => {
+    setNewAttendance({
+      studentId: '',
+      subjectId: subjects[0]?._id || '',
+      date: new Date().toISOString().split('T')[0],
+      status: 'present',
+      term: '',
+      level: '',
+      notes: ''
+    });
+    setAttendanceDialog(true);
+  };
+
+  const openBulkAttendanceDialog = () => {
+    if (!subjects[0]) {
+      setSnack({ open: true, message: 'Please create a subject first' });
+      return;
+    }
+    setBulkAttendance({
+      subjectId: subjects[0]._id,
+      date: new Date().toISOString().split('T')[0],
+      term: '',
+      level: '',
+      attendanceList: students.map(s => ({ studentId: s._id, status: 'present', notes: '' }))
+    });
+    setBulkAttendanceDialog(true);
+  };
+
+  const submitAttendance = async () => {
+    try {
+      if (!newAttendance.studentId || !newAttendance.subjectId || !newAttendance.date || !newAttendance.status) {
+        setSnack({ open: true, message: 'Please fill all required fields' });
+        return;
+      }
+      await api.post('/teachers/attendance', newAttendance);
+      setSnack({ open: true, message: 'Attendance marked successfully' });
+      setAttendanceDialog(false);
+      fetchAttendance();
+      fetchAttendanceStats();
+    } catch (error) {
+      setSnack({ open: true, message: error.response?.data?.error || 'Failed to mark attendance' });
+    }
+  };
+
+  const submitBulkAttendance = async () => {
+    try {
+      if (!bulkAttendance.subjectId || !bulkAttendance.date) {
+        setSnack({ open: true, message: 'Subject and date are required' });
+        return;
+      }
+      const response = await api.post('/teachers/attendance/bulk', bulkAttendance);
+      setSnack({ open: true, message: `Attendance marked for ${response.data.success} student(s)` });
+      setBulkAttendanceDialog(false);
+      fetchAttendance();
+      fetchAttendanceStats();
+    } catch (error) {
+      setSnack({ open: true, message: error.response?.data?.error || 'Failed to mark attendance' });
+    }
+  };
+
+  const updateAttendanceStatus = async (attendanceId, status) => {
+    try {
+      await api.put(`/teachers/attendance/${attendanceId}`, { status });
+      setSnack({ open: true, message: 'Attendance updated' });
+      fetchAttendance();
+      fetchAttendanceStats();
+    } catch (error) {
+      setSnack({ open: true, message: error.response?.data?.error || 'Failed to update attendance' });
+    }
+  };
+
+  const deleteAttendance = async (attendanceId) => {
+    try {
+      await api.delete(`/teachers/attendance/${attendanceId}`);
+      setSnack({ open: true, message: 'Attendance record deleted' });
+      fetchAttendance();
+      fetchAttendanceStats();
+    } catch (error) {
+      setSnack({ open: true, message: error.response?.data?.error || 'Failed to delete attendance' });
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'present': return <CheckCircle color="success" />;
+      case 'absent': return <Cancel color="error" />;
+      case 'late': return <Schedule color="warning" />;
+      case 'excused': return <Block color="info" />;
+      default: return <CheckCircle />;
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'present': return 'success';
+      case 'absent': return 'error';
+      case 'late': return 'warning';
+      case 'excused': return 'info';
+      default: return 'default';
+    }
   };
 
   const closeEditMarkDialog = () => {
@@ -856,6 +1028,209 @@ Jane Smith,jane.smith@example.com,ADM002,Term 1,Senior Secondary School`}
             )}
           </Box>
         )}
+
+        {/* Attendance Tab */}
+        {activeTab === 6 && (
+          <Box sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6">Attendance Management</Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button variant="outlined" startIcon={<Add />} onClick={openAttendanceDialog}>
+                  Mark Single
+                </Button>
+                <Button variant="contained" startIcon={<Add />} onClick={openBulkAttendanceDialog}>
+                  Mark Bulk
+                </Button>
+              </Box>
+            </Box>
+
+            {/* Filters */}
+            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel>Subject</InputLabel>
+                <Select
+                  value={attendanceFilters.subjectId}
+                  label="Subject"
+                  onChange={(e) => {
+                    setAttendanceFilters({ ...attendanceFilters, subjectId: e.target.value });
+                    setTimeout(() => {
+                      fetchAttendance();
+                      fetchAttendanceStats();
+                    }, 100);
+                  }}
+                >
+                  <MenuItem value="">All Subjects</MenuItem>
+                  {subjects.map(subject => (
+                    <MenuItem key={subject._id} value={subject._id}>{subject.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                label="Term"
+                size="small"
+                value={attendanceFilters.term}
+                onChange={(e) => {
+                  setAttendanceFilters({ ...attendanceFilters, term: e.target.value });
+                  setTimeout(() => {
+                    fetchAttendance();
+                    fetchAttendanceStats();
+                  }, 100);
+                }}
+                placeholder="e.g., Term 1"
+              />
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel>Level</InputLabel>
+                <Select
+                  value={attendanceFilters.level}
+                  label="Level"
+                  onChange={(e) => {
+                    setAttendanceFilters({ ...attendanceFilters, level: e.target.value });
+                    setTimeout(() => {
+                      fetchAttendance();
+                      fetchAttendanceStats();
+                    }, 100);
+                  }}
+                >
+                  <MenuItem value="">All Levels</MenuItem>
+                  <MenuItem value="Junior Secondary School">Junior Secondary School</MenuItem>
+                  <MenuItem value="Senior Secondary School">Senior Secondary School</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label="Date"
+                type="date"
+                size="small"
+                value={attendanceFilters.date}
+                onChange={(e) => {
+                  setAttendanceFilters({ ...attendanceFilters, date: e.target.value });
+                  setTimeout(() => {
+                    fetchAttendance();
+                    fetchAttendanceStats();
+                  }, 100);
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setAttendanceFilters({ subjectId: '', term: '', level: '', date: '' });
+                  setTimeout(() => {
+                    fetchAttendance();
+                    fetchAttendanceStats();
+                  }, 100);
+                }}
+              >
+                Clear
+              </Button>
+            </Box>
+
+            {/* Attendance Statistics */}
+            {attendanceStats.length > 0 && (
+              <Paper sx={{ p: 2, mb: 3 }}>
+                <Typography variant="h6" gutterBottom>Attendance Statistics</Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Student</TableCell>
+                        <TableCell align="right">Total</TableCell>
+                        <TableCell align="right">Present</TableCell>
+                        <TableCell align="right">Absent</TableCell>
+                        <TableCell align="right">Late</TableCell>
+                        <TableCell align="right">Excused</TableCell>
+                        <TableCell align="right">Rate (%)</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {attendanceStats.map((stat) => (
+                        <TableRow key={stat.studentId}>
+                          <TableCell>{stat.student?.name || 'N/A'}</TableCell>
+                          <TableCell align="right">{stat.total}</TableCell>
+                          <TableCell align="right">{stat.present}</TableCell>
+                          <TableCell align="right">{stat.absent}</TableCell>
+                          <TableCell align="right">{stat.late}</TableCell>
+                          <TableCell align="right">{stat.excused}</TableCell>
+                          <TableCell align="right">
+                            <Chip 
+                              label={`${stat.attendanceRate}%`} 
+                              color={parseFloat(stat.attendanceRate) >= 80 ? 'success' : parseFloat(stat.attendanceRate) >= 60 ? 'warning' : 'error'}
+                              size="small"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
+            )}
+
+            {/* Attendance Records */}
+            <Typography variant="h6" gutterBottom>Attendance Records</Typography>
+            {attendance.length === 0 ? (
+              <Typography color="text.secondary">No attendance records found. Mark attendance to get started.</Typography>
+            ) : (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Student</TableCell>
+                      <TableCell>Subject</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Term</TableCell>
+                      <TableCell>Notes</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {attendance.map((record) => (
+                      <TableRow key={record._id}>
+                        <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                        <TableCell>{record.studentId?.name || 'N/A'}</TableCell>
+                        <TableCell>{record.subjectId?.name || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            icon={getStatusIcon(record.status)}
+                            label={record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                            color={getStatusColor(record.status)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>{record.term || 'N/A'}</TableCell>
+                        <TableCell>{record.notes || '-'}</TableCell>
+                        <TableCell align="right">
+                          <FormControl size="small" sx={{ minWidth: 100, mr: 1 }}>
+                            <Select
+                              value={record.status}
+                              onChange={(e) => updateAttendanceStatus(record._id, e.target.value)}
+                            >
+                              <MenuItem value="present">Present</MenuItem>
+                              <MenuItem value="absent">Absent</MenuItem>
+                              <MenuItem value="late">Late</MenuItem>
+                              <MenuItem value="excused">Excused</MenuItem>
+                            </Select>
+                          </FormControl>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => {
+                              if (window.confirm('Delete this attendance record?')) {
+                                deleteAttendance(record._id);
+                              }
+                            }}
+                          >
+                            <Delete />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        )}
       </Paper>
 
       {/* Create Subject Dialog */}
@@ -1069,6 +1444,203 @@ Jane Smith,jane.smith@example.com,ADM002,Term 1,Senior Secondary School`}
         <DialogActions>
           <Button onClick={closeEditMarkDialog}>Cancel</Button>
           <Button onClick={handleUpdateMark} variant="contained">Update</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Mark Single Attendance Dialog */}
+      <Dialog open={attendanceDialog} onClose={() => setAttendanceDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Mark Attendance</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <FormControl fullWidth required>
+              <InputLabel>Subject</InputLabel>
+              <Select
+                value={newAttendance.subjectId}
+                label="Subject"
+                onChange={(e) => setNewAttendance({ ...newAttendance, subjectId: e.target.value })}
+              >
+                {subjects.map((subject) => (
+                  <MenuItem key={subject._id} value={subject._id}>
+                    {subject.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth required>
+              <InputLabel>Student</InputLabel>
+              <Select
+                value={newAttendance.studentId}
+                label="Student"
+                onChange={(e) => setNewAttendance({ ...newAttendance, studentId: e.target.value })}
+              >
+                {students.map((student) => (
+                  <MenuItem key={student._id} value={student._id}>
+                    {student.name} ({student.admissionNumber || student.email})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Date"
+              type="date"
+              fullWidth
+              required
+              value={newAttendance.date}
+              onChange={(e) => setNewAttendance({ ...newAttendance, date: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+            />
+            <FormControl fullWidth required>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={newAttendance.status}
+                label="Status"
+                onChange={(e) => setNewAttendance({ ...newAttendance, status: e.target.value })}
+              >
+                <MenuItem value="present">Present</MenuItem>
+                <MenuItem value="absent">Absent</MenuItem>
+                <MenuItem value="late">Late</MenuItem>
+                <MenuItem value="excused">Excused</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Term"
+              fullWidth
+              value={newAttendance.term}
+              onChange={(e) => setNewAttendance({ ...newAttendance, term: e.target.value })}
+              placeholder="e.g., Term 1"
+            />
+            <FormControl fullWidth>
+              <InputLabel>Level</InputLabel>
+              <Select
+                value={newAttendance.level}
+                label="Level"
+                onChange={(e) => setNewAttendance({ ...newAttendance, level: e.target.value })}
+              >
+                <MenuItem value="">None</MenuItem>
+                <MenuItem value="Junior Secondary School">Junior Secondary School</MenuItem>
+                <MenuItem value="Senior Secondary School">Senior Secondary School</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Notes"
+              fullWidth
+              multiline
+              rows={3}
+              value={newAttendance.notes}
+              onChange={(e) => setNewAttendance({ ...newAttendance, notes: e.target.value })}
+              placeholder="Optional notes..."
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAttendanceDialog(false)}>Cancel</Button>
+          <Button onClick={submitAttendance} variant="contained">Mark Attendance</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Mark Bulk Attendance Dialog */}
+      <Dialog open={bulkAttendanceDialog} onClose={() => setBulkAttendanceDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Mark Bulk Attendance</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <FormControl fullWidth required>
+              <InputLabel>Subject</InputLabel>
+              <Select
+                value={bulkAttendance.subjectId}
+                label="Subject"
+                onChange={(e) => setBulkAttendance({ ...bulkAttendance, subjectId: e.target.value })}
+              >
+                {subjects.map((subject) => (
+                  <MenuItem key={subject._id} value={subject._id}>
+                    {subject.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              label="Date"
+              type="date"
+              fullWidth
+              required
+              value={bulkAttendance.date}
+              onChange={(e) => setBulkAttendance({ ...bulkAttendance, date: e.target.value })}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Term"
+              fullWidth
+              value={bulkAttendance.term}
+              onChange={(e) => setBulkAttendance({ ...bulkAttendance, term: e.target.value })}
+              placeholder="e.g., Term 1"
+            />
+            <FormControl fullWidth>
+              <InputLabel>Level</InputLabel>
+              <Select
+                value={bulkAttendance.level}
+                label="Level"
+                onChange={(e) => setBulkAttendance({ ...bulkAttendance, level: e.target.value })}
+              >
+                <MenuItem value="">None</MenuItem>
+                <MenuItem value="Junior Secondary School">Junior Secondary School</MenuItem>
+                <MenuItem value="Senior Secondary School">Senior Secondary School</MenuItem>
+              </Select>
+            </FormControl>
+            <Typography variant="subtitle2" sx={{ mt: 2 }}>Mark attendance for all students:</Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Student</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Notes</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {bulkAttendance.attendanceList.map((item, index) => {
+                    const student = students.find(s => s._id === item.studentId);
+                    return (
+                      <TableRow key={item.studentId}>
+                        <TableCell>{student?.name || 'N/A'}</TableCell>
+                        <TableCell>
+                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <Select
+                              value={item.status}
+                              onChange={(e) => {
+                                const updated = [...bulkAttendance.attendanceList];
+                                updated[index].status = e.target.value;
+                                setBulkAttendance({ ...bulkAttendance, attendanceList: updated });
+                              }}
+                            >
+                              <MenuItem value="present">Present</MenuItem>
+                              <MenuItem value="absent">Absent</MenuItem>
+                              <MenuItem value="late">Late</MenuItem>
+                              <MenuItem value="excused">Excused</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            value={item.notes || ''}
+                            onChange={(e) => {
+                              const updated = [...bulkAttendance.attendanceList];
+                              updated[index].notes = e.target.value;
+                              setBulkAttendance({ ...bulkAttendance, attendanceList: updated });
+                            }}
+                            placeholder="Optional"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkAttendanceDialog(false)}>Cancel</Button>
+          <Button onClick={submitBulkAttendance} variant="contained">Mark All</Button>
         </DialogActions>
       </Dialog>
 

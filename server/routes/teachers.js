@@ -5,7 +5,7 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const { Readable } = require('stream');
 const { auth, checkRole } = require('../middleware/auth'); // Correct middleware import
-const { Subject, Mark, User } = require('../models');
+const { Subject, Mark, User, Attendance } = require('../models');
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({ 
@@ -572,6 +572,283 @@ router.get('/reports/marks', auth, checkRole(['teacher']), async (req, res) => {
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ error: 'Server Error' });
+  }
+});
+
+// ==================== ATTENDANCE ROUTES ====================
+
+// Mark attendance for a student
+router.post('/attendance', auth, checkRole(['teacher']), async (req, res) => {
+  try {
+    const { studentId, subjectId, date, status, term, level, notes } = req.body;
+
+    if (!studentId || !subjectId || !date || !status) {
+      return res.status(400).json({ error: 'Student ID, Subject ID, date, and status are required' });
+    }
+
+    // Verify subject belongs to teacher
+    const subject = await Subject.findOne({ _id: subjectId, teacherId: req.user.id });
+    if (!subject) {
+      return res.status(403).json({ error: 'You do not have permission to mark attendance for this subject' });
+    }
+
+    // Check if attendance already exists for this student, subject, and date
+    const existing = await Attendance.findOne({ studentId, subjectId, date: new Date(date) });
+    
+    if (existing) {
+      // Update existing attendance
+      existing.status = status;
+      if (term) existing.term = term;
+      if (level) existing.level = level;
+      if (notes !== undefined) existing.notes = notes;
+      await existing.save();
+      return res.json(existing);
+    }
+
+    // Create new attendance record
+    const attendance = new Attendance({
+      studentId,
+      subjectId,
+      date: new Date(date),
+      status,
+      term: term || null,
+      level: level || null,
+      notes: notes || null,
+      markedBy: req.user.id
+    });
+
+    await attendance.save();
+    res.status(201).json(attendance);
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ error: 'Attendance already marked for this student, subject, and date' });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Mark attendance for multiple students (bulk)
+router.post('/attendance/bulk', auth, checkRole(['teacher']), async (req, res) => {
+  try {
+    const { subjectId, date, term, level, attendanceList } = req.body;
+
+    if (!subjectId || !date || !attendanceList || !Array.isArray(attendanceList)) {
+      return res.status(400).json({ error: 'Subject ID, date, and attendance list are required' });
+    }
+
+    // Verify subject belongs to teacher
+    const subject = await Subject.findOne({ _id: subjectId, teacherId: req.user.id });
+    if (!subject) {
+      return res.status(403).json({ error: 'You do not have permission to mark attendance for this subject' });
+    }
+
+    const results = [];
+    const errors = [];
+    const attendanceDate = new Date(date);
+
+    for (const item of attendanceList) {
+      try {
+        const { studentId, status, notes } = item;
+        
+        if (!studentId || !status) {
+          errors.push({ studentId, error: 'Student ID and status are required' });
+          continue;
+        }
+
+        // Check if attendance already exists
+        const existing = await Attendance.findOne({ 
+          studentId, 
+          subjectId, 
+          date: attendanceDate 
+        });
+
+        if (existing) {
+          // Update existing
+          existing.status = status;
+          if (term) existing.term = term;
+          if (level) existing.level = level;
+          if (notes !== undefined) existing.notes = notes;
+          await existing.save();
+          results.push(existing);
+        } else {
+          // Create new
+          const attendance = new Attendance({
+            studentId,
+            subjectId,
+            date: attendanceDate,
+            status,
+            term: term || null,
+            level: level || null,
+            notes: notes || null,
+            markedBy: req.user.id
+          });
+          await attendance.save();
+          results.push(attendance);
+        }
+      } catch (err) {
+        errors.push({ studentId: item.studentId, error: err.message });
+      }
+    }
+
+    res.json({
+      message: 'Bulk attendance marked',
+      success: results.length,
+      errors: errors.length,
+      results,
+      errorsList: errors
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get attendance records
+router.get('/attendance', auth, checkRole(['teacher']), async (req, res) => {
+  try {
+    const { subjectId, studentId, date, term, level, startDate, endDate } = req.query;
+
+    // Get teacher's subjects
+    const subjects = await Subject.find({ teacherId: req.user.id });
+    const subjectIds = subjects.map(s => s._id);
+
+    // Build query
+    let query = { subjectId: { $in: subjectIds } };
+    
+    if (subjectId && subjectIds.includes(subjectId)) {
+      query.subjectId = subjectId;
+    }
+    if (studentId) query.studentId = studentId;
+    if (term) query.term = term;
+    if (level) query.level = level;
+    if (date) {
+      const dateObj = new Date(date);
+      const nextDay = new Date(dateObj);
+      nextDay.setDate(nextDay.getDate() + 1);
+      query.date = { $gte: dateObj, $lt: nextDay };
+    }
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    const attendance = await Attendance.find(query)
+      .populate('studentId', 'name admissionNumber email')
+      .populate('subjectId', 'name')
+      .populate('markedBy', 'name')
+      .sort('-date');
+
+    res.json(attendance);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get attendance statistics
+router.get('/attendance/stats', auth, checkRole(['teacher']), async (req, res) => {
+  try {
+    const { subjectId, term, level, startDate, endDate } = req.query;
+
+    // Get teacher's subjects
+    const subjects = await Subject.find({ teacherId: req.user.id });
+    const subjectIds = subjects.map(s => s._id);
+
+    let query = { subjectId: { $in: subjectIds } };
+    if (subjectId && subjectIds.includes(subjectId)) {
+      query.subjectId = subjectId;
+    }
+    if (term) query.term = term;
+    if (level) query.level = level;
+    if (startDate && endDate) {
+      query.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    const stats = await Attendance.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: '$studentId',
+          total: { $sum: 1 },
+          present: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } },
+          absent: { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } },
+          late: { $sum: { $cond: [{ $eq: ['$status', 'late'] }, 1, 0] } },
+          excused: { $sum: { $cond: [{ $eq: ['$status', 'excused'] }, 1, 0] } }
+        }
+      }
+    ]);
+
+    // Populate student info
+    const statsWithStudentInfo = await Promise.all(
+      stats.map(async (stat) => {
+        const student = await User.findById(stat._id).select('name admissionNumber email');
+        return {
+          studentId: stat._id,
+          student: student,
+          total: stat.total,
+          present: stat.present,
+          absent: stat.absent,
+          late: stat.late,
+          excused: stat.excused,
+          attendanceRate: stat.total > 0 ? ((stat.present + stat.excused) / stat.total * 100).toFixed(1) : 0
+        };
+      })
+    );
+
+    res.json(statsWithStudentInfo);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update attendance
+router.put('/attendance/:id', auth, checkRole(['teacher']), async (req, res) => {
+  try {
+    const attendance = await Attendance.findById(req.params.id).populate('subjectId');
+    
+    if (!attendance) {
+      return res.status(404).json({ error: 'Attendance record not found' });
+    }
+
+    // Verify subject belongs to teacher
+    const subject = await Subject.findOne({ _id: attendance.subjectId._id, teacherId: req.user.id });
+    if (!subject) {
+      return res.status(403).json({ error: 'You do not have permission to update this attendance' });
+    }
+
+    const { status, notes } = req.body;
+    if (status) attendance.status = status;
+    if (notes !== undefined) attendance.notes = notes;
+
+    await attendance.save();
+    res.json(attendance);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete attendance
+router.delete('/attendance/:id', auth, checkRole(['teacher']), async (req, res) => {
+  try {
+    const attendance = await Attendance.findById(req.params.id).populate('subjectId');
+    
+    if (!attendance) {
+      return res.status(404).json({ error: 'Attendance record not found' });
+    }
+
+    // Verify subject belongs to teacher
+    const subject = await Subject.findOne({ _id: attendance.subjectId._id, teacherId: req.user.id });
+    if (!subject) {
+      return res.status(403).json({ error: 'You do not have permission to delete this attendance' });
+    }
+
+    await Attendance.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Attendance record deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

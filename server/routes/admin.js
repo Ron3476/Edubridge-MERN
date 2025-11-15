@@ -103,15 +103,36 @@ router.post('/users', auth, checkRole(['admin']), async (req, res) => {
 // Update user
 router.put('/users/:id', auth, checkRole(['admin']), async (req, res) => {
     try {
+        const updateData = { ...req.body };
+        
+        // Hash password if provided and not empty
+        if (updateData.password && updateData.password.trim() !== '') {
+            updateData.password = await bcrypt.hash(updateData.password, 12);
+        } else {
+            // Remove password from update if it's empty (don't update password)
+            delete updateData.password;
+        }
+
+        // Clean up fields for non-students
+        if (updateData.role && updateData.role !== 'student') {
+            delete updateData.admissionNumber;
+            delete updateData.level;
+            delete updateData.term;
+        }
+
         const user = await User.findByIdAndUpdate(
             req.params.id,
-            { $set: req.body },
+            { $set: updateData },
             { new: true, runValidators: true }
         );
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        res.json(user);
+        
+        // Return user without password
+        const userResponse = user.toObject();
+        delete userResponse.password;
+        res.json(userResponse);
     } catch (error) {
         res.status(400).json({ error: error.message });
     }

@@ -109,12 +109,23 @@ const AdminDashboard = () => {
     } catch (error) { handleError(error); }
   };
 
-  const openEditModal = (user) => { setEditUser({ ...user }); setEditModalOpen(true); };
+  const openEditModal = (user) => { 
+    const userCopy = { ...user };
+    // Don't include password in edit form (it's hashed anyway)
+    delete userCopy.password;
+    setEditUser(userCopy); 
+    setEditModalOpen(true); 
+  };
   const closeEditModal = () => { setEditModalOpen(false); setEditUser(null); };
 
   const submitEdit = async () => {
     try {
-      const payload = { ...editUser }; delete payload._id;
+      const payload = { ...editUser }; 
+      delete payload._id;
+      // Remove password if it's empty (don't update password)
+      if (!payload.password || payload.password.trim() === '') {
+        delete payload.password;
+      }
       await api.put(`/admin/users/${editUser._id}`, payload);
       setSnack({ open: true, message: 'User updated' });
       closeEditModal(); fetchUsers();
@@ -532,14 +543,82 @@ const AdminDashboard = () => {
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={editModalOpen} onClose={closeEditModal}>
+      <Dialog open={editModalOpen} onClose={closeEditModal} maxWidth="sm" fullWidth>
         <DialogTitle>Edit User</DialogTitle>
         <DialogContent>
           {editUser && (
-            <Box component="form" sx={{ '& .MuiTextField-root': { m: 1, width: '25ch' } }}>
-              <TextField label="Name" name="name" value={editUser.name} onChange={handleEditUserChange} />
-              <TextField label="Email" name="email" value={editUser.email} onChange={handleEditUserChange} />
-              {/* Add other editable fields as needed */}
+            <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <TextField
+                label="Full Name"
+                name="name"
+                value={editUser.name || ''}
+                onChange={handleEditUserChange}
+                fullWidth
+                required
+              />
+              <TextField
+                label="Email"
+                name="email"
+                type="email"
+                value={editUser.email || ''}
+                onChange={handleEditUserChange}
+                fullWidth
+                required
+              />
+              <TextField
+                label="Password"
+                name="password"
+                type="password"
+                value={editUser.password || ''}
+                onChange={handleEditUserChange}
+                fullWidth
+                helperText="Leave blank to keep current password"
+              />
+              <FormControl fullWidth>
+                <InputLabel>Role</InputLabel>
+                <Select 
+                  name="role" 
+                  value={editUser.role || 'student'} 
+                  label="Role" 
+                  onChange={handleEditUserChange}
+                >
+                  <MenuItem value="student">Student</MenuItem>
+                  <MenuItem value="teacher">Teacher</MenuItem>
+                  <MenuItem value="parent">Parent</MenuItem>
+                  <MenuItem value="admin">Admin</MenuItem>
+                </Select>
+              </FormControl>
+              {editUser.role === 'student' && (
+                <>
+                  <TextField
+                    label="Admission Number"
+                    name="admissionNumber"
+                    value={editUser.admissionNumber || ''}
+                    onChange={handleEditUserChange}
+                    fullWidth
+                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Level/Grade</InputLabel>
+                    <Select
+                      name="level"
+                      value={editUser.level || ''}
+                      label="Level/Grade"
+                      onChange={handleEditUserChange}
+                    >
+                      <MenuItem value="Junior Secondary School">Junior Secondary School</MenuItem>
+                      <MenuItem value="Senior Secondary School">Senior Secondary School</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label="Term"
+                    name="term"
+                    value={editUser.term || ''}
+                    onChange={handleEditUserChange}
+                    fullWidth
+                    placeholder="e.g., Term 1"
+                  />
+                </>
+              )}
             </Box>
           )}
         </DialogContent>

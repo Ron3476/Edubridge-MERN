@@ -8,5 +8,6 @@ module.exports = {
     StudyNote: require('./StudyNote'),
     GeneratedCard: require('./GeneratedCard'),
     FlashCard: require('./FlashCard'),
-    ParentChild: require('./ParentChild')
+    ParentChild: require('./ParentChild'),
+    Attendance: require('./Attendance')
 };

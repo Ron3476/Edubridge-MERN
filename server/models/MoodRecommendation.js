@@ -12,8 +12,14 @@ const moodRecommendationSchema = new Schema({
         type: String,
         required: true
     },
+    category: {
+        type: String,
+        enum: ['Wellbeing', 'Study Tips', 'Energy Boost', 'Stress Relief', 'Support', 'General'],
+        default: 'General'
+    },
     provider: {
-        type: String
+        type: String,
+        default: 'system'
     },
     createdAt: {
         type: Date,
